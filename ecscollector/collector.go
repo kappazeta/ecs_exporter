@@ -30,6 +30,21 @@ var (
 		"Total CPU usage in seconds.",
 		cpuLabels, nil)
 
+	cpuPreTotalDesc = prometheus.NewDesc(
+		"ecs_cpu_seconds_pre_total",
+		"Previous total CPU usage in seconds.",
+		cpuLabels, nil)
+
+	cpuSystemDesc = prometheus.NewDesc(
+		"ecs_cpu_seconds_system",
+		"System CPU usage in seconds.",
+		labels, nil)
+
+	cpuPreSystemDesc = prometheus.NewDesc(
+		"ecs_cpu_seconds_pre_system",
+		"Previous system CPU usage in seconds.",
+		labels, nil)
+
 	memUsageDesc = prometheus.NewDesc(
 		"ecs_memory_bytes",
 		"Memory usage in bytes.",
@@ -117,6 +132,9 @@ type collector struct {
 
 func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- cpuTotalDesc
+	ch <- cpuPreTotalDesc
+	ch <- cpuSystemDesc
+	ch <- cpuPreSystemDesc
 	ch <- memUsageDesc
 	ch <- memMaxUsageDesc
 	ch <- memLimitDesc
@@ -163,6 +181,30 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 				append(labelVals, cpu)...,
 			)
 		}
+
+		for i, cpuUsage := range s.PreCPUStats.CPUUsage.PerCPUUsage {
+			cpu := fmt.Sprintf("%d", i)
+			ch <- prometheus.MustNewConstMetric(
+				cpuPreTotalDesc,
+				prometheus.CounterValue,
+				cpuJiffiesToSeconds(cpuUsage),
+				append(labelVals, cpu)...,
+			)
+		}
+
+		ch <- prometheus.MustNewConstMetric(
+			cpuSystemDesc,
+			prometheus.CounterValue,
+			cpuJiffiesToSeconds(s.CPUStats.SystemCPUUsage),
+			labelVals...,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			cpuPreSystemDesc,
+			prometheus.CounterValue,
+			cpuJiffiesToSeconds(s.PreCPUStats.SystemCPUUsage),
+			labelVals...,
+		)
 
 		for desc, value := range map[*prometheus.Desc]float64{
 			memUsageDesc:      s.MemoryStats.Usage,
