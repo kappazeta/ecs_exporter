@@ -25,25 +25,15 @@ import (
 )
 
 var (
+	cpuUsageDesc = prometheus.NewDesc(
+		"ecs_cpu_usage",
+		"CPU usage as a percentage.",
+		cpuLabels, nil)
+
 	cpuTotalDesc = prometheus.NewDesc(
 		"ecs_cpu_seconds_total",
 		"Total CPU usage in seconds.",
 		cpuLabels, nil)
-
-	cpuPreTotalDesc = prometheus.NewDesc(
-		"ecs_cpu_seconds_pre_total",
-		"Previous total CPU usage in seconds.",
-		cpuLabels, nil)
-
-	cpuSystemDesc = prometheus.NewDesc(
-		"ecs_cpu_seconds_system",
-		"System CPU usage in seconds.",
-		labels, nil)
-
-	cpuPreSystemDesc = prometheus.NewDesc(
-		"ecs_cpu_seconds_pre_system",
-		"Previous system CPU usage in seconds.",
-		labels, nil)
 
 	memUsageDesc = prometheus.NewDesc(
 		"ecs_memory_bytes",
@@ -132,9 +122,7 @@ type collector struct {
 
 func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- cpuTotalDesc
-	ch <- cpuPreTotalDesc
-	ch <- cpuSystemDesc
-	ch <- cpuPreSystemDesc
+	ch <- cpuUsageDesc
 	ch <- memUsageDesc
 	ch <- memMaxUsageDesc
 	ch <- memLimitDesc
@@ -182,29 +170,19 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 			)
 		}
 
-		for i, cpuUsage := range s.PreCPUStats.CPUUsage.PerCPUUsage {
+		for i := 0; i < len(s.PreCPUStats.CPUUsage.PerCPUUsage); i++ {
 			cpu := fmt.Sprintf("%d", i)
+			delta_total := cpuJiffiesToSeconds(s.CPUStats.CPUUsage.PerCPUUsage[i]) - cpuJiffiesToSeconds(s.PreCPUStats.CPUUsage.PerCPUUsage[i])
+			delta_system := cpuJiffiesToSeconds(s.CPUStats.SystemCPUUsage) - cpuJiffiesToSeconds(s.PreCPUStats.SystemCPUUsage)
+			cpu_percentage := delta_total / delta_system * 100.0
+
 			ch <- prometheus.MustNewConstMetric(
-				cpuPreTotalDesc,
-				prometheus.CounterValue,
-				cpuJiffiesToSeconds(cpuUsage),
+				cpuUsageDesc,
+				prometheus.GaugeValue,
+				cpu_percentage,
 				append(labelVals, cpu)...,
 			)
 		}
-
-		ch <- prometheus.MustNewConstMetric(
-			cpuSystemDesc,
-			prometheus.CounterValue,
-			cpuJiffiesToSeconds(s.CPUStats.SystemCPUUsage),
-			labelVals...,
-		)
-
-		ch <- prometheus.MustNewConstMetric(
-			cpuPreSystemDesc,
-			prometheus.CounterValue,
-			cpuJiffiesToSeconds(s.PreCPUStats.SystemCPUUsage),
-			labelVals...,
-		)
 
 		for desc, value := range map[*prometheus.Desc]float64{
 			memUsageDesc:      s.MemoryStats.Usage,
