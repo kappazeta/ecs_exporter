@@ -26,6 +26,7 @@ import (
 )
 
 var addr string
+var version string = "0.0.3"
 
 func main() {
 	flag.StringVar(&addr, "addr", ":9779", "The address to listen on for HTTP requests.")
@@ -44,6 +45,6 @@ func main() {
 		fmt.Fprint(w, "ok")
 	})
 
-	log.Printf("Starting server at %q", addr)
+	log.Printf("Starting server %s at %q", version, addr)
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
